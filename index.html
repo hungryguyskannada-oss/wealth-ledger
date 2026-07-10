@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual Wealth & Expense Tracker</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon-512.png">
+
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans pb-24">
+
+    <header class="bg-blue-600 text-white p-4 sticky top-0 z-50 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold mx-auto">Wealth & Finance Hub</h1>
+    </header>
+
+    <div class="max-w-md mx-auto p-4 space-y-6">
+
+        <!-- --- DASHBOARD TAB --- -->
+        <div id="dashboard-tab" class="tab-content active space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h2 class="text-sm font-semibold text-gray-500 uppercase">Estimated Net Worth</h2>
+                <p id="net-worth-val" class="text-3xl font-black text-gray-800 mt-1">₹0.00</p>
+                <div class="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-gray-100 text-sm">
+                    <div><span class="text-gray-500">Total Assets:</span> <span id="total-assets" class="font-bold text-green-600">₹0</span></div>
+                    <div><span class="text-gray-500">Total Liabilities:</span> <span id="total-liabilities" class="font-bold text-red-600">₹0</span></div>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="font-bold text-gray-700 mb-2">Asset & Portfolio Allocation</h3>
+                <canvas id="assetChart" width="100" height="100"></canvas>
+            </div>
+            
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="font-bold text-gray-700 mb-2">Income vs Expense Flow</h3>
+                <canvas id="incExpChart" width="100" height="100"></canvas>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-2">
+                <h3 class="font-bold text-gray-800 text-sm uppercase tracking-wide">Excel Data Transfer (CSV)</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="exportToExcelCSV()" class="bg-emerald-700 text-white p-2 rounded-md font-bold text-xs hover:bg-emerald-800">📊 Export to Excel</button>
+                    <label class="bg-gray-200 text-gray-700 p-2 rounded-md font-bold text-xs hover:bg-gray-300 text-center cursor-pointer">
+                        📥 Import Excel CSV
+                        <input type="file" id="import-file" class="hidden" accept=".csv" onchange="importFromExcelCSV(event)">
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- --- BALANCES TAB --- -->
+        <div id="balances-tab" class="tab-content space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="font-bold text-gray-800 mb-3 text-lg">Create/Update Accounts (Manual)</h3>
+                <form id="balance-form" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase">Category</label>
+                        <select id="bal-category" class="w-full p-2 border rounded-md bg-gray-50">
+                            <option value="bank">Bank Accounts</option>
+                            <option value="trading">Trading Accounts (Stocks/F&O)</option>
+                            <option value="investment">Investments (Mutual Funds, Gold, FD)</option>
+                            <option value="receivable">Receivables (Money owed to you)</option>
+                            <option value="loan">Loans / Payables (Liabilities)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase">Name/Description</label>
+                        <input type="text" id="bal-name" placeholder="e.g., HDFC Bank, Zerodha, Home Loan" class="w-full p-2 border rounded-md" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase">Initial Balance (₹)</label>
+                        <input type="number" id="bal-amount" placeholder="0.00" step="0.01" class="w-full p-2 border rounded-md" required>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white p-2.5 rounded-md font-semibold">Save Account</button>
+                </form>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="font-bold text-gray-800 mb-2">Live Real Breakdown</h3>
+                <div id="balance-list" class="divide-y divide-gray-100 max-h-80 overflow-y-auto"></div>
+            </div>
+        </div>
+
+        <!-- --- TRANSACTIONS & TRANSFERS TAB --- -->
+        <div id="transactions-tab" class="tab-content space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="font-bold text-gray-800 mb-3 text-lg">Log Activity / Transfers</h3>
+                <form id="tx-form" class="space-y-3">
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <button type="button" onclick="setTxType('Expense')" id="btn-tx-exp" class="p-2 border rounded-md text-xs font-bold transition-all">Expense</button>
+                        <button type="button" onclick="setTxType('Income')" id="btn-tx-inc" class="p-2 border rounded-md text-xs font-bold transition-all">Income</button>
+                        <button type="button" onclick="setTxType('Transfer')" id="btn-tx-trf" class="p-2 border rounded-md text-xs font-bold transition-all">Transfer</button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase">Execution Date</label>
+                            <input type="date" id="tx-date" class="w-full p-2 border rounded-md bg-gray-50" required>
+                        </div>
+                        <div>
+                            <label id="tx-account-label" class="block text-xs font-bold text-gray-600 uppercase">Account / Source</label>
+                            <select id="tx-account" class="w-full p-2 border rounded-md bg-gray-50" required></select>
+                        </div>
+                    </div>
+
+                    <div id="transfer-dest-grp" class="hidden">
+                        <label class="block text-xs font-bold text-blue-700 uppercase">Destination Account (Transfer To)</label>
+                        <select id="tx-dest-account" class="w-full p-2 border border-blue-300 rounded-md bg-blue-50"></select>
+                    </div>
+
+                    <div id="tx-category-grp">
+                        <label class="block text-xs font-bold text-gray-600 uppercase">Category</label>
+                        <div class="flex gap-1">
+                            <select id="tx-category" class="w-full p-2 border rounded-md bg-gray-50"></select>
+                            <button type="button" onclick="promptNewCategory()" class="bg-gray-200 px-3 rounded-md font-bold">+</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase">Amount (₹)</label>
+                        <input type="number" id="tx-amount" placeholder="0.00" step="0.01" class="w-full p-2 border rounded-md" required>
+                    </div>
+
+                    <div id="trading-charges-grp" class="p-2 bg-yellow-50 rounded-md space-y-2 hidden">
+                        <label class="block text-xs font-bold text-amber-800 uppercase">Include Brokerage / Processing Fees (₹)</label>
+                        <input type="number" id="tx-charges" value="0" step="0.01" class="w-full p-2 border border-amber-300 rounded-md">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase">Note Description</label>
+                        <input type="text" id="tx-note" placeholder="Optional notes" class="w-full p-2 border rounded-md">
+                    </div>
+
+                    <button type="submit" id="btn-submit-tx" class="w-full text-white p-2.5 rounded-md font-semibold transition-all">Log Transaction</button>
+                </form>
+            </div>
+
+            <!-- --- LEDGER ENTRY SECTION WITH SEPARATED FILTER VIEW --- -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="font-bold text-gray-800 mb-2.5">Historical Records Ledger</h3>
+                
+                <!-- Separated Filter Switch Tab Menu -->
+                <div class="flex border-b border-gray-200 mb-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 overflow-x-auto whitespace-nowrap">
+                    <button onclick="setLedgerFilter('All')" id="flt-all" class="py-2 px-3 border-b-2 border-blue-600 text-blue-600">All</button>
+                    <button onclick="setLedgerFilter('Expense')" id="flt-exp" class="py-2 px-3 border-b-2 border-transparent">Expenses</button>
+                    <button onclick="setLedgerFilter('Income')" id="flt-inc" class="py-2 px-3 border-b-2 border-transparent">Incomes</button>
+                    <button onclick="setLedgerFilter('Transfer')" id="flt-trf" class="py-2 px-3 border-b-2 border-transparent">Transfers</button>
+                </div>
+
+                <div id="tx-ledger-list" class="divide-y divide-gray-100 max-h-80 overflow-y-auto space-y-2"></div>
+            </div>
+        </div>
+
+        <!-- --- BUDGETS TAB --- -->
+        <div id="budgets-tab" class="tab-content space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="font-bold text-gray-800 mb-3 text-lg">Category Budget Configuration</h3>
+                <div class="flex gap-2">
+                    <select id="budget-cat" class="w-1/2 p-2 border rounded-md bg-gray-50"></select>
+                    <input type="number" id="budget-limit" placeholder="Limit" class="w-1/4 p-2 border rounded-md">
+                    <button onclick="saveBudget()" class="w-1/4 bg-purple-600 text-white rounded-md font-bold text-sm">Set Limit</button>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="font-bold text-gray-800 mb-2">Active Controls</h3>
+                <div id="budget-alerts" class="space-y-2"></div>
+            </div>
+        </div>
+
+        <!-- --- FUTURE TAB --- -->
+        <div id="future-tab" class="tab-content space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="font-bold text-gray-800 mb-3 text-lg">Upcoming Pipeline Planner</h3>
+                <form id="future-form" class="space-y-3">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase">Target Date</label>
+                            <input type="date" id="future-date" class="w-full p-2 border rounded-md bg-gray-50" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase">Type</label>
+                            <select id="future-type" class="w-full p-2 border rounded-md bg-gray-50">
+                                <option value="Future Expense">Upcoming Expense</option>
+                                <option value="Future Income">Upcoming Income</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase">Assigned Target Account</label>
+                        <select id="future-account" class="w-full p-2 border rounded-md bg-gray-50" required></select>
+                        <p class="text-[10px] text-amber-600 mt-1">⚠️ Changes here only forecast values inside this pipeline view.</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase">Description</label>
+                        <input type="text" id="future-name" placeholder="e.g., Insurance Premium, Expected Return" class="w-full p-2 border rounded-md" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase">Amount (₹)</label>
+                        <input type="number" id="future-amount" placeholder="0.00" step="0.01" class="w-full p-2 border rounded-md" required>
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 text-white p-2.5 rounded-md font-semibold">Add to Forecast Pipeline</button>
+                </form>
+            </div>
+
+            <div class="bg-gray-800 text-white p-4 rounded-xl shadow-sm border border-gray-900">
+                <h3 class="font-bold text-xs uppercase tracking-wider text-gray-400 mb-2">Simulated Forecast Accounts</h3>
+                <div id="future-simulated-balances" class="space-y-1 text-sm divide-y divide-gray-700"></div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="font-bold text-gray-800 mb-2">Pending Pipelines (Unrealized)</h3>
+                <div id="future-list" class="divide-y divide-gray-100"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- --- NAVIGATION BAR --- -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg flex justify-around text-center py-2 text-xs font-medium z-50">
+        <button onclick="switchTab('dashboard')" id="nav-dashboard" class="flex-1 text-blue-600">
+            <div class="text-xl">📊</div>Dashboard
+        </button>
+        <button onclick="switchTab('balances')" id="nav-balances" class="flex-1 text-gray-500">
+            <div class="text-xl">🏦</div>Balances
+        </button>
+        <button onclick="switchTab('transactions')" id="nav-transactions" class="flex-1 text-gray-500">
+            <div class="text-xl">💸</div>Log Trx
+        </button>
+        <button onclick="switchTab('budgets')" id="nav-budgets" class="flex-1 text-gray-500">
+            <div class="text-xl">🎯</div>Budgets
+        </button>
+        <button onclick="switchTab('future')" id="nav-future" class="flex-1 text-gray-500">
+            <div class="text-xl">⏳</div>Future
+        </button>
+    </nav>
+
+    <script>
+        const todayStr = new Date().toISOString().split('T')[0];
+        document.getElementById('tx-date').value = todayStr;
+        document.getElementById('future-date').value = todayStr;
+
+        let db = JSON.parse(localStorage.getItem('wealth_db')) || {
+            balances: [],
+            transactions: [],
+            future: [],
+            categories: {
+                Expense: ['Food', 'Rent', 'Utilities', 'Trading Loss'],
+                Income: ['Salary', 'Business Revenue', 'Trading Profit']
+            },
+            budgets: {}
+        };
+
+        let currentTxType = 'Expense';
+        let currentLedgerFilter = 'All';
+        let assetChartInstance = null;
+        let incExpChartInstance = null;
+
+        function saveDB() {
+            localStorage.setItem('wealth_db', JSON.stringify(db));
+            renderAll();
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(`${tabId}-tab`).classList.add('active');
+            document.querySelectorAll('nav button').forEach(el => el.classList.replace('text-blue-600', 'text-gray-500'));
+            document.getElementById(`nav-${tabId}`).classList.replace('text-gray-500', 'text-blue-600');
+            populateAccountDropdowns();
+            if(tabId === 'dashboard') updateCharts();
+        }
+
+        function setLedgerFilter(filterType) {
+            currentLedgerFilter = filterType;
+            const filterIds = { All: 'flt-all', Expense: 'flt-exp', Income: 'flt-inc', Transfer: 'flt-trf' };
+            
+            for (let type in filterIds) {
+                const el = document.getElementById(filterIds[type]);
+                if (type === filterType) {
+                    el.className = "py-2 px-3 border-b-2 border-blue-600 text-blue-600";
+                } else {
+                    el.className = "py-2 px-3 border-b-2 border-transparent text-gray-500";
+                }
+            }
+            renderAll();
+        }
+
+        function populateAccountDropdowns() {
+            const txAccountSelect = document.getElementById('tx-account');
+            const txDestSelect = document.getElementById('tx-dest-account');
+            const futureAccountSelect = document.getElementById('future-account');
+            txAccountSelect.innerHTML = ''; txDestSelect.innerHTML = ''; futureAccountSelect.innerHTML = '';
+
+            if (db.balances.length === 0) {
+                const clearMsg = '<option value="">-- Add an account first --</option>';
+                txAccountSelect.innerHTML = clearMsg; txDestSelect.innerHTML = clearMsg; futureAccountSelect.innerHTML = clearMsg;
+                return;
+            }
+            db.balances.forEach(acc => {
+                const optString = `<option value="${acc.id}">${acc.name} (Bal: ₹${acc.amount.toFixed(2)})</option>`;
+                txAccountSelect.innerHTML += optString;
+                txDestSelect.innerHTML += optString;
+                futureAccountSelect.innerHTML += `<option value="${acc.id}">${acc.name}</option>`;
+            });
+        }
+
+        function setTxType(type) {
+            currentTxType = type;
+            const btnExp = document.getElementById('btn-tx-exp');
+            const btnInc = document.getElementById('btn-tx-inc');
+            const btnTrf = document.getElementById('btn-tx-trf');
+            const submitBtn = document.getElementById('btn-submit-tx');
+            const catGrp = document.getElementById('tx-category-grp');
+            const destGrp = document.getElementById('transfer-dest-grp');
+            const chargesGrp = document.getElementById('trading-charges-grp');
+            const labelAcc = document.getElementById('tx-account-label');
+
+            btnExp.className = "p-2 border rounded-md text-xs font-bold bg-gray-100 text-gray-700";
+            btnInc.className = "p-2 border rounded-md text-xs font-bold bg-gray-100 text-gray-700";
+            btnTrf.className = "p-2 border rounded-md text-xs font-bold bg-gray-100 text-gray-700";
+
+            if (type === 'Expense') {
+                btnExp.className = "p-2 border rounded-md text-xs font-bold bg-red-500 text-white shadow-sm";
+                submitBtn.className = "w-full bg-red-600 text-white p-2.5 rounded-md font-semibold";
+                submitBtn.innerText = "Log Expense";
+                catGrp.style.display = 'block'; destGrp.style.display = 'none'; chargesGrp.style.display = 'block';
+                labelAcc.innerText = "Account (From)";
+                populateCategories();
+            } else if (type === 'Income') {
+                btnInc.className = "p-2 border rounded-md text-xs font-bold bg-green-500 text-white shadow-sm";
+                submitBtn.className = "w-full bg-green-600 text-white p-2.5 rounded-md font-semibold";
+                submitBtn.innerText = "Log Income";
+                catGrp.style.display = 'block'; destGrp.style.display = 'none'; chargesGrp.style.display = 'none';
+                labelAcc.innerText = "Account (To)";
+                populateCategories();
+            } else if (type === 'Transfer') {
+                btnTrf.className = "p-2 border rounded-md text-xs font-bold bg-blue-500 text-white shadow-sm";
+                submitBtn.className = "w-full bg-blue-600 text-white p-2.5 rounded-md font-semibold";
+                submitBtn.innerText = "Execute Internal Transfer";
+                catGrp.style.display = 'none'; destGrp.style.display = 'block'; chargesGrp.style.display = 'block';
+                labelAcc.innerText = "Source Account (From)";
+            }
+        }
+
+        function populateCategories() {
+            const catSelect = document.getElementById('tx-category');
+            const bgtSelect = document.getElementById('budget-cat');
+            catSelect.innerHTML = ''; bgtSelect.innerHTML = '';
+            if(db.categories[currentTxType]) {
+                db.categories[currentTxType].forEach(cat => { catSelect.innerHTML += `<option value="${cat}">${cat}</option>`; });
+            }
+            db.categories.Expense.forEach(cat => { bgtSelect.innerHTML += `<option value="${cat}">${cat}</option>`; });
+        }
+
+        function promptNewCategory() {
+            if (currentTxType === 'Transfer') return;
+            const name = prompt(`Enter new custom ${currentTxType} category name:`);
+            if(name && !db.categories[currentTxType].includes(name)) {
+                db.categories[currentTxType].push(name);
+                saveDB();
+                populateCategories();
+            }
+        }
+
+        document.getElementById('balance-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            db.balances.push({
+                id: Date.now(),
+                category: document.getElementById('bal-category').value,
+                name: document.getElementById('bal-name').value,
+                amount: parseFloat(document.getElementById('bal-amount').value)
+            });
+            e.target.reset();
+            saveDB();
+        });
+
+        document.getElementById('tx-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const dateVal = document.getElementById('tx-date').value;
+            const accountId = parseInt(document.getElementById('tx-account').value);
+            const amt = parseFloat(document.getElementById('tx-amount').value);
+            const charges = parseFloat(document.getElementById('tx-charges').value) || 0;
+            const note = document.getElementById('tx-note').value;
+
+            if(!accountId) return alert("Select an account!");
+            const targetAcc = db.balances.find(b => b.id === accountId);
+
+            if (currentTxType === 'Transfer') {
+                const destAccountId = parseInt(document.getElementById('tx-dest-account').value);
+                if (accountId === destAccountId) return alert("Source and Destination accounts cannot be the same!");
+                const destAcc = db.balances.find(b => b.id === destAccountId);
+                if (targetAcc && destAcc) {
+                    if(targetAcc.category === 'loan') targetAcc.amount += (amt + charges); else targetAcc.amount -= (amt + charges);
+                    if(destAcc.category === 'loan') destAcc.amount -= amt; else destAcc.amount += amt;
+                    db.transactions.push({
+                        id: Date.now(), date: dateVal, type: 'Transfer', category: 'Internal Transfer', amount: amt, charges: charges,
+                        sourceAccountId: accountId, destAccountId: destAccountId, note: note
+                    });
+                }
+            } else {
+                if (targetAcc) {
+                    if (currentTxType === 'Expense') {
+                        if(targetAcc.category === 'loan') targetAcc.amount += (amt + charges); else targetAcc.amount -= (amt + charges);
+                    } else if (currentTxType === 'Income') {
+                        if(targetAcc.category === 'loan') targetAcc.amount -= amt; else targetAcc.amount += amt;
+                    }
+                    db.transactions.push({
+                        id: Date.now(), date: dateVal, type: currentTxType, category: document.getElementById('tx-category').value, 
+                        amount: amt, charges: charges, sourceAccountId: accountId, destAccountId: null, note: note
+                    });
+                }
+            }
+            e.target.reset();
+            document.getElementById('tx-date').value = todayStr;
+            document.getElementById('tx-charges').value = "0";
+            saveDB();
+        });
+
+        // --- NEW inline balance sheet update method core logic ---
+        function inlineUpdateAccount(id) {
+            const nameField = document.getElementById(`inline-name-${id}`);
+            const amtField = document.getElementById(`inline-amt-${id}`);
+            if(!nameField || !amtField) return;
+
+            const targetAcc = db.balances.find(b => b.id === id);
+            if (targetAcc) {
+                const parsedVal = parseFloat(amtField.value);
+                if (!isNaN(parsedVal)) {
+                    targetAcc.name = nameField.value;
+                    targetAcc.amount = parsedVal;
+                    saveDB();
+                    alert("Account balance modified perfectly!");
+                }
+            }
+        }
+
+        function editTransactionItem(id) {
+            const tx = db.transactions.find(t => t.id === id);
+            if(!tx) return;
+            
+            const newAmountStr = prompt(`Modify item principal ledger amount (₹):`, tx.amount);
+            const newNote = prompt("Modify text descriptions / reference values:", tx.note);
+            
+            if(newAmountStr !== null && newNote !== null) {
+                const parsedAmt = parseFloat(newAmountStr);
+                if(!isNaN(parsedAmt)) {
+                    const oldTotalImpact = tx.amount + (tx.charges || 0);
+                    const newTotalImpact = parsedAmt + (tx.charges || 0);
+                    const differenceImpact = newTotalImpact - oldTotalImpact;
+
+                    const srcAcc = db.balances.find(b => b.id === tx.sourceAccountId);
+                    if(tx.type === 'Expense' && srcAcc) {
+                        if(srcAcc.category === 'loan') srcAcc.amount += differenceImpact; else srcAcc.amount -= differenceImpact;
+                    } else if(tx.type === 'Income' && srcAcc) {
+                        if(srcAcc.category === 'loan') srcAcc.amount -= differenceImpact; else srcAcc.amount += differenceImpact;
+                    } else if(tx.type === 'Transfer' && srcAcc) {
+                        const dstAcc = db.balances.find(b => b.id === tx.destAccountId);
+                        if(srcAcc.category === 'loan') srcAcc.amount += differenceImpact; else srcAcc.amount -= differenceImpact;
+                        if(dstAcc) {
+                            if(dstAcc.category === 'loan') dstAcc.amount -= (parsedAmt - tx.amount); else dstAcc.amount += (parsedAmt - tx.amount);
+                        }
+                    }
+                    
+                    tx.amount = parsedAmt;
+                    tx.note = newNote;
+                    saveDB();
+                }
+            }
+        }
+
+        function deleteTransactionWithRollback(id) {
+            const tx = db.transactions.find(t => t.id === id);
+            if(!tx) return;
+            const totalImpact = tx.amount + (tx.charges || 0);
+            const srcAcc = db.balances.find(b => b.id === tx.sourceAccountId);
+
+            if(tx.type === 'Expense' && srcAcc) {
+                if(srcAcc.category === 'loan') srcAcc.amount -= totalImpact; else srcAcc.amount += totalImpact;
+            } else if(tx.type === 'Income' && srcAcc) {
+                if(srcAcc.category === 'loan') srcAcc.amount += tx.amount; else srcAcc.amount -= tx.amount;
+            } else if(tx.type === 'Transfer' && srcAcc) {
+                const dstAcc = db.balances.find(b => b.id === tx.destAccountId);
+                if(srcAcc.category === 'loan') srcAcc.amount -= totalImpact; else srcAcc.amount += totalImpact;
+                if(dstAcc) {
+                    if(dstAcc.category === 'loan') dstAcc.amount += tx.amount; else dstAcc.amount -= tx.amount;
+                }
+            }
+            db.transactions = db.transactions.filter(t => t.id !== id);
+            saveDB();
+        }
+
+        document.getElementById('future-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            db.future.push({
+                id: Date.now(),
+                date: document.getElementById('future-date').value,
+                type: document.getElementById('future-type').value,
+                accountId: parseInt(document.getElementById('future-account').value),
+                name: document.getElementById('future-name').value,
+                amount: parseFloat(document.getElementById('future-amount').value)
+            });
+            e.target.reset();
+            document.getElementById('future-date').value = todayStr;
+            saveDB();
+        });
+
+        function convertFutureToReal(id) {
+            const idx = db.future.findIndex(f => f.id === id);
+            if(idx > -1) {
+                const item = db.future[idx];
+                switchTab('transactions');
+                document.getElementById('tx-date').value = item.date;
+                document.getElementById('tx-amount').value = item.amount;
+                document.getElementById('tx-note').value = `Executed Pipeline: ${item.name}`;
+                document.getElementById('tx-account').value = item.accountId;
+                setTxType(item.type.includes('Expense') ? 'Expense' : 'Income');
+                db.future.splice(idx, 1);
+                saveDB();
+            }
+        }
+
+        function saveBudget() {
+            const cat = document.getElementById('budget-cat').value;
+            const limit = parseFloat(document.getElementById('budget-limit').value);
+            if(cat && limit) { db.budgets[cat] = limit; saveDB(); }
+        }
+
+        function deleteItem(type, id) {
+            db[type] = db[type].filter(item => item.id !== id);
+            saveDB();
+        }
+
+        function exportToExcelCSV() {
+            let csvRows = [];
+            csvRows.push("DATA_TYPE,ID,CATEGORY_OR_TYPE,NAME_OR_CAT,AMOUNT,CHARGES_OR_DEST,DATE_OR_NOTE");
+            db.balances.forEach(b => {
+                csvRows.push(`ACCOUNT,${b.id},${b.category},"${b.name.replace(/"/g, '""')}",${b.amount},,`);
+            });
+            db.transactions.forEach(t => {
+                csvRows.push(`TRANSACTION,${t.id},${t.type},"${t.category.replace(/"/g, '""')}",${t.amount},${t.charges || 0},"${t.date} - ${t.note.replace(/"/g, '""')}"`);
+            });
+            db.future.forEach(f => {
+                csvRows.push(`FUTURE,${f.id},${f.type},"${f.name.replace(/"/g, '""')}",${f.amount},${f.accountId},${f.date}`);
+            });
+
+            const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `FinancialHub_Spreadsheet_${todayStr}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
+
+        function importFromExcelCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const textLines = e.target.result.split("\n");
+                    let importedDB = { balances: [], transactions: [], future: [], categories: db.categories, budgets: db.budgets };
+                    
+                    for (let i = 1; i < textLines.length; i++) {
+                        if (!textLines[i].trim()) continue;
+                        const columns = textLines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                        if (columns.length < 5) continue;
+
+                        const dataType = columns[0].trim();
+                        const id = parseInt(columns[1]);
+                        const typeOrCat = columns[2].trim();
+                        const nameOrCat = columns[3].replace(/^"|"$/g, '').trim();
+                        const amount = parseFloat(columns[4]);
+
+                        if(dataType === "ACCOUNT") {
+                            importedDB.balances.push({ id: id, category: typeOrCat, name: nameOrCat, amount: amount });
+                        } else if(dataType === "TRANSACTION") {
+                            const charges = parseFloat(columns[5]) || 0;
+                            const noteRaw = columns[6] ? columns[6].replace(/^"|"$/g, '').trim() : "";
+                            const dateSplitIdx = noteRaw.indexOf(" - ");
+                            const dateVal = dateSplitIdx !== -1 ? noteRaw.substring(0, dateSplitIdx) : todayStr;
+                            const cleanerNote = dateSplitIdx !== -1 ? noteRaw.substring(dateSplitIdx + 3) : noteRaw;
+                            importedDB.transactions.push({ id: id, date: dateVal, type: typeOrCat, category: nameOrCat, amount: amount, charges: charges, note: cleanerNote });
+                        } else if(dataType === "FUTURE") {
+                            const accountId = parseInt(columns[5]) || 0;
+                            const dateVal = columns[6] ? columns[6].trim() : todayStr;
+                            importedDB.future.push({ id: id, date: dateVal, type: typeOrCat, name: nameOrCat, amount: amount, accountId: accountId });
+                        }
+                    }
+
+                    if(importedDB.balances.length > 0 || importedDB.transactions.length > 0) {
+                        db = importedDB;
+                        saveDB();
+                        alert("Excel file sync successful!");
+                        window.location.reload();
+                    } else { alert("Spreadsheet parse structure mismatch error!"); }
+                } catch(err) { alert("Parsing error found while mapping tracking cells."); }
+            };
+            reader.readAsText(file);
+        }
+
+        function toggleInlineFields(id) {
+            const formBox = document.getElementById(`inline-box-${id}`);
+            formBox.classList.toggle('hidden');
+        }
+
+        function renderAll() {
+            const balList = document.getElementById('balance-list');
+            if(!balList) return;
+            balList.innerHTML = '';
+            let totalA = 0, totalL = 0;
+            let virtualForecastBalances = JSON.parse(JSON.stringify(db.balances));
+
+            db.balances.forEach(b => {
+                const isLiability = b.category === 'loan';
+                if(isLiability) totalL += b.amount; else totalA += b.amount;
+                balList.innerHTML += `
+                    <div class="py-2.5 text-sm space-y-1">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="font-semibold text-gray-800">${b.name}</p>
+                                <span class="text-xs text-gray-400 uppercase text-[10px]">${b.category}</span>
+                            </div>
+                            <div class="text-right flex items-center gap-1">
+                                <span class="${isLiability ? 'text-red-600' : 'text-green-600'} font-bold mr-1">₹${b.amount.toFixed(2)}</span>
+                                <button onclick="toggleInlineFields(${b.id})" class="text-blue-500 font-medium text-xs px-1">📝</button>
+                                <button onclick="deleteItem('balances', ${b.id})" class="text-red-400 hover:text-red-600 font-bold px-1 text-lg">×</button>
+                            </div>
+                        </div>
+                        <!-- Inline Edit inputs ecosystem block box -->
+                        <div id="inline-box-${b.id}" class="hidden bg-gray-50 p-2 rounded border border-gray-200 mt-1 flex gap-1.5 items-center">
+                            <input type="text" id="inline-name-${b.id}" value="${b.name}" class="w-1/2 p-1 text-xs border rounded bg-white">
+                            <input type="number" id="inline-amt-${b.id}" value="${b.amount}" step="0.01" class="w-1/3 p-1 text-xs border rounded bg-white">
+                            <button onclick="inlineUpdateAccount(${b.id})" class="bg-blue-600 text-white text-[10px] px-2 py-1 rounded font-bold">Save</button>
+                        </div>
+                    </div>`;
+            });
+
+            document.getElementById('net-worth-val').innerText = `₹${(totalA - totalL).toFixed(2)}`;
+            document.getElementById('total-assets').innerText = `₹${totalA.toFixed(2)}`;
+            document.getElementById('total-liabilities').innerText = `₹${totalL.toFixed(2)}`;
+
+            // Build transaction ledger history separated view list
+            const ledgerBox = document.getElementById('tx-ledger-list');
+            ledgerBox.innerHTML = '';
+            
+            // Apply filtering logic separation
+            let filteredTx = db.transactions;
+            if (currentLedgerFilter !== 'All') {
+                filteredTx = db.transactions.filter(t => t.type === currentLedgerFilter);
+            }
+
+            if(filteredTx.length === 0) {
+                ledgerBox.innerHTML = `<p class="text-xs text-gray-400 text-center py-4">No ${currentLedgerFilter === 'All' ? '' : currentLedgerFilter} records logged yet.</p>`;
+            }
+            
+            [...filteredTx].reverse().forEach(t => {
+                let badgeStyle = "bg-red-100 text-red-800";
+                if(t.type === 'Income') badgeStyle = "bg-green-100 text-green-800";
+                if(t.type === 'Transfer') badgeStyle = "bg-blue-100 text-blue-800";
+
+                const sourceAccount = db.balances.find(b => b.id === t.sourceAccountId);
+                const sourceName = sourceAccount ? sourceAccount.name : 'Unknown';
+                const destAccount = t.destAccountId ? db.balances.find(b => b.id === t.destAccountId) : null;
+                const destContextString = destAccount ? ` ➔ ${destAccount.name}` : '';
+
+                ledgerBox.innerHTML += `
+                    <div class="py-2 flex justify-between items-start text-xs">
+                        <div class="space-y-0.5 max-w-[70%]">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <span class="font-mono text-[10px] text-gray-400">${t.date}</span>
+                                <span class="px-1.5 py-0.2 rounded font-bold text-[9px] uppercase ${badgeStyle}">${t.type}</span>
+                                <span class="text-gray-500 font-medium">(${t.category})</span>
+                            </div>
+                            <p class="text-gray-800 font-medium break-words">${t.note || 'No note context'}</p>
+                            <p class="text-[9px] font-mono text-gray-400">Context: ${sourceName}${destContextString}</p>
+                        </div>
+                        <div class="text-right flex flex-col items-end gap-1 shrink-0">
+                            <span class="font-bold text-gray-900">₹${(t.amount + (t.charges || 0)).toFixed(2)}</span>
+                            <div class="flex gap-2">
+                                <button onclick="editTransactionItem(${t.id})" class="text-blue-500 font-bold hover:underline text-[10px]">Edit</button>
+                                <button onclick="deleteTransactionWithRollback(${t.id})" class="text-red-400 font-bold hover:underline text-[10px]">Delete</button>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+
+            const budgetAlertsBox = document.getElementById('budget-alerts');
+            budgetAlertsBox.innerHTML = '';
+            for(let cat in db.budgets){
+                const spent = db.transactions.filter(t => t.type === 'Expense' && t.category === cat).reduce((sum, t) => sum + t.amount, 0);
+                const limit = db.budgets[cat];
+                if(spent >= limit) {
+                    budgetAlertsBox.innerHTML += `<div class="bg-red-100 text-red-800 p-2 rounded text-xs font-bold">⚠️ Over Limit! ${cat} (Spent: ₹${spent.toFixed(2)}/₹${limit.toFixed(2)})</div>`;
+                } else {
+                    budgetAlertsBox.innerHTML += `<div class="bg-gray-100 text-gray-600 p-1.5 rounded text-xs">📊 ${cat}: ₹${spent.toFixed(2)} / ₹${limit.toFixed(2)} used</div>`;
+                }
+            }
+
+            const futList = document.getElementById('future-list');
+            futList.innerHTML = '';
+            db.future.forEach(f => {
+                const targetVirtualAccount = virtualForecastBalances.find(v => v.id === f.accountId);
+                const accountLabelName = targetVirtualAccount ? targetVirtualAccount.name : 'Unknown Account';
+                if (targetVirtualAccount) {
+                    const dynamicImpact = f.type.includes('Expense') ? -f.amount : f.amount;
+                    if(targetVirtualAccount.category === 'loan') targetVirtualAccount.amount -= dynamicImpact; else targetVirtualAccount.amount += dynamicImpact;
+                }
+                futList.innerHTML += `
+                    <div class="flex justify-between items-center py-2.5 text-sm">
+                        <div>
+                            <p class="font-semibold text-gray-800">${f.name} <span class="text-gray-400 font-normal text-xs">(${f.date})</span></p>
+                            <span class="text-[9px] bg-indigo-100 text-indigo-800 px-1 py-0.5 rounded font-medium uppercase mr-1">${f.type}</span>
+                            <span class="text-[9px] bg-gray-200 text-gray-700 px-1 py-0.5 rounded font-mono">${accountLabelName}</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <span class="font-bold text-gray-700 mr-1 text-xs">₹${f.amount.toFixed(2)}</span>
+                            <button onclick="convertFutureToReal(${f.id})" class="bg-green-100 text-green-700 px-1.5 py-1 rounded text-[10px] font-bold hover:bg-green-200">Realize</button>
+                            <button onclick="deleteItem('future', ${f.id})" class="text-red-400 hover:text-red-600 font-bold px-1 text-sm">×</button>
+                        </div>
+                    </div>`;
+            });
+
+            const vBalBox = document.getElementById('future-simulated-balances');
+            vBalBox.innerHTML = '';
+            if(virtualForecastBalances.length === 0) vBalBox.innerHTML = '<p class="text-xs text-gray-500 py-1">No operational accounts configured.</p>';
+            virtualForecastBalances.forEach(v => {
+                const labelColor = v.category === 'loan' ? 'text-red-400' : 'text-green-400';
+                vBalBox.innerHTML += `
+                    <div class="flex justify-between items-center py-1.5 text-xs font-mono">
+                        <span class="text-gray-300">${v.name}:</span>
+                        <span class="${labelColor} font-bold">₹${v.amount.toFixed(2)}</span>
+                    </div>`;
+            });
+        }
+
+        function updateCharts() {
+            let assetVals = { bank: 0, trading: 0, investment: 0, receivable: 0 };
+            db.balances.forEach(b => { if(assetVals[b.category] !== undefined) assetVals[b.category] += b.amount; });
+
+            if(assetChartInstance) assetChartInstance.destroy();
+            assetChartInstance = new Chart(document.getElementById('assetChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Banks', 'Trading (Stocks/F&O)', 'Investments', 'Receivables'],
+                    datasets: [{
+                        data: [assetVals.bank, assetVals.trading, assetVals.investment, assetVals.receivable],
+                        backgroundColor: ['#2563eb', '#6366f1', '#16a34a', '#ca8a04']
+                    }]
+                },
+                options: { responsive: true }
+            });
+
+            let incSum = db.transactions.filter(t => t.type === 'Income').reduce((sum, t) => sum + t.amount, 0);
+            let expSum = db.transactions.filter(t => t.type === 'Expense').reduce((sum, t) => sum + t.amount, 0);
+
+            if(incExpChartInstance) incExpChartInstance.destroy();
+            incExpChartInstance = new Chart(document.getElementById('incExpChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['Income', 'Expense'],
+                    datasets: [{
+                        label: 'Aggregated Activity Total (₹)',
+                        data: [incSum, expSum],
+                        backgroundColor: ['#10b981', '#ef4444']
+                    }]
+                },
+                options: { scales: { y: { beginAtZero: true } }, responsive: true }
+            });
+        }
+
+        setTxType('Expense');
+        renderAll();
+        switchTab('dashboard');
+
+        // --- PWA Service Worker Registration ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then((reg) => console.log('Service worker registered:', reg.scope))
+                    .catch((err) => console.error('Service worker registration failed:', err));
+            });
+        }
+    </script>
+</body>
+</html>
